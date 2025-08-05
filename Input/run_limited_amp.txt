@@ -1,0 +1,28 @@
+from limited_amplitude import occurrence, distance_truncation
+
+# 1. Load metadata (location, canopy, SM2/SM4 ARU type)
+# FIX 1: Use 'r' before the string to make it a raw string.
+metadata_df = distance_truncation.load_metadata(
+  metadata_file=r"C:\Users\leona\OneDrive\Desktop\Chapter 2\Output\Tabular Data\LA inputs\metadata.csv"
+)
+
+# 2. Apply distance truncation to individual tags
+truncated_tags = distance_truncation.apply_distance_truncation(
+  # FIX 2: Use 'r' raw string.
+  # FIX 3: Added missing closing quote (") and corrected the comma position.
+  tags_csv_path=r"C:\Users\leona\OneDrive\Desktop\Chapter 2\Output\Tabular Data\LA inputs\PGBT_tags_all_years.csv",
+  metadata_df=metadata_df,
+  distance_threshold=150.0  # Distance in meters
+)
+
+
+# Convert to count format
+count_df = distance_truncation.convert_to_counts(
+  truncated_tags=truncated_tags,
+  # FIX 4: Use 'r' raw string.
+  recordings_csv_path=r"C:\Users\leona\OneDrive\Desktop\Chapter 2\Output\Tabular Data\LA inputs\PGBT_recordings_all_years.csv"
+)
+
+# Save results
+# FIX 5: Use 'r' raw string.
+count_df.to_csv(r"C:\Users\leona\OneDrive\Desktop\Chapter 2\Output\Tabular Data\truncated_count_150m.csv", index=False)

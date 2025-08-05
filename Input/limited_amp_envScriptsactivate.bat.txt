@@ -1,0 +1,3 @@
+limited_amp_env\Scripts\activate.bat
+cd Limited-amplitude
+python run_limited_amp.py
