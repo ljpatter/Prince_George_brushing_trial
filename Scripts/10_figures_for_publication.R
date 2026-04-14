@@ -5,14 +5,12 @@
 # description: 
 # ---
 
-
 # Load packages
 library(cowplot)
 library(ggplot2)
 
 
 ######### ALPHA DIV
-
 
 # 1) Extract legend (from UD)
 legend_alpha <- get_legend(

@@ -11,9 +11,9 @@ suppressPackageStartupMessages({
   library(iNEXT)
 })
 
-## ============================================================
+## ==========================
 ## 0) Load + preprocess (LA)
-## ============================================================
+## =========================
 
 abundance_all_years_LA <- read.csv("Output/Tabular Data/mean_count_all_years_LA.csv")
 
@@ -193,7 +193,7 @@ boot_cell_raw <- bind_rows(boot_list_cell) %>% filter(!is.na(qD))
 stopifnot(nrow(boot_baci_raw) > 0, nrow(boot_cell_raw) > 0)
 
 ## ============================================================
-## 3) Gamma "EMM-like" estimates table (q=0/1): Before/After/Total
+## 3) Gamma EMM estimates table (q=0/1): Before/After/Total
 ## ============================================================
 
 gamma_emm_table_LA <- boot_cell_raw %>%
@@ -234,10 +234,9 @@ wide_cells_gamma_LA <- gamma_emm_table_LA %>%
 
 stopifnot(all(c("Before", "After", "Grand Total") %in% names(wide_cells_gamma_LA)))
 
-## ============================================================
-## 4) BACI contrasts table (q=0/1): mean + bootstrap CI + p-values
-##    p-value = 2 * min( P(Estimate<=0), P(Estimate>=0) )
-## ============================================================
+## =========================
+## 4) BACI contrasts table 
+## =========================
 
 boot_pvals_baci_LA <- boot_baci_raw %>%
   filter(Order.q %in% c("q = 0", "q = 1"),
@@ -309,10 +308,9 @@ gamma_baci_table_LA <- boot_baci_raw %>%
 
 write.csv(gamma_baci_table_LA, "Output/Tables/GD_LA_BACI_long.csv", row.names = FALSE)
 
-## ============================================================
-## 5) FINAL report table (header + estimates + contrasts)
-##    (Same structure as your alpha summary table)
-## ============================================================
+## ========================
+## 5) FINAL report table 
+## ========================
 
 gamma_report_table_LA <- wide_cells_gamma_LA %>%
   mutate(RowType = "estimate", Row = as.character(Treatment)) %>%
@@ -359,10 +357,9 @@ write.csv(gamma_report_table_LA, "Output/Tables/GD_LA_EMMplusBACI_report.csv", r
 
 
 
-## ==========================================
-## 6. Plot BACI contrasts (gamma diversity)
-##    Use gamma_baci_table_LA (already correct)
-## ==========================================
+## ========================
+## 6. Plot BACI contrasts 
+## ========================
 
 # Build plotting df from your already-correct table
 plot_df_gamma_LA <- gamma_baci_table_LA %>%

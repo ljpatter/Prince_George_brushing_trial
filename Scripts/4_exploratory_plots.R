@@ -5,16 +5,15 @@
 # description: 
 # ---
 
-
 # Load packages
 library(tidyverse)
+
 
 
 ##### LIMITED AMPLITUDE
 
 # Load data
 LA_data <- read.csv("Output/Tabular Data/mean_count_all_years_LA.csv")
-
 
 # --- 1. Data Preparation and Reshaping ---
 
@@ -79,16 +78,6 @@ ggplot(LA_data_long,
     legend.position = "bottom",
     strip.text = element_text(face = "bold")
   )
-
-
-
-
-
-
-
-
-
-
 
 
 

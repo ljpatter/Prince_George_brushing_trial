@@ -142,12 +142,9 @@ plot(alpha_q1_res)
 
 
 
-## ==========================================
-## 4. Get EMMs (expected alpha Hill numbers)
-##    for treatment * time_period
-## ==========================================
-
-# Cell means on the linear scale (gaussian link is identity, so this is fine)
+## =============
+## 4. Get EMMs 
+## =============
 emm_q0_LA <- emmeans(alpha_q0_model_LA, ~ treatment * time_period)
 emm_q1_LA <- emmeans(alpha_q1_model_LA, ~ treatment * time_period)
 #emm_q2_LA <- emmeans(alpha_q2_model_LA, ~ treatment * time_period)
@@ -155,10 +152,9 @@ emm_q1_LA <- emmeans(alpha_q1_model_LA, ~ treatment * time_period)
 
 
 
-## ==========================================
-## 5. BACI-style contrasts via emmeans::contrast
-##    on the RESPONSE (Hill-number) scale
-## ==========================================
+## =====================================
+## 5. BACI contrasts on response scale
+## =====================================
 
 get_baci_LA <- function(emm_obj, order_q) {
   
@@ -342,15 +338,9 @@ write.csv(
 
 
 
-
-
-
-
-
-## ============================================================
-## Combine EMMs (q0 & q1) + build reporting table (After/Before/Grand Total)
-## (LA)  -- SHORT VERSION
-## ============================================================
+## ==================================================
+## Combine EMMs (q0 & q1) and build reporting table
+## ==================================================
 
 emm_to_table <- function(emm, metric) {
   df <- as.data.frame(confint(regrid(emm, transform = "response")))

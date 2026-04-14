@@ -1,12 +1,79 @@
-# ---
-# title: "Singe species analysis - LA - MEAN COUNT"
-# author: "Leonard Patterson"
-# created: "2025-12-12"
-# description: 
-# ---
+# Load packages
+library(dplyr)
+library(tidyr)
 
 # Clear environment
 rm(list = ls())  # Removes all objects from the environment
+
+## ============================================================
+## MEAN COUNT — LIMITED AMPLITUDE (LA) 
+## ============================================================
+
+# Load data
+dat_LA <- read.csv("Output/Tabular Data/truncated_count_150m_with_distances.csv") %>%
+  select(location, recording_date_time, species_code, distance_est)
+
+dat_LA_125 <- dat_LA %>%
+  filter(distance_est < 125)
+
+dat_LA_125_ALFL <- dat_LA %>%
+  filter(distance_est < 125) %>%
+  filter(species_code == "ALFL")
+
+########## Convert truncated dfs from long to wide format
+
+# species columns expected in final output
+species_cols <- setdiff(names(dat_LA), c("location", "recording_date_time"))
+
+# 1) Unique visit template from dat_LA
+visit_template <- dat_LA %>%
+  distinct(location, recording_date_time)
+
+
+
+
+
+
+### 125 m radius
+
+# 1. Convert long detections to wide counts
+dat_LA_125_wide <- dat_LA_125 %>%
+  count(location, recording_date_time, species_code, name = "n") %>%
+  pivot_wider(
+    names_from = species_code,
+    values_from = n,
+    values_fill = 0)
+
+# 2. Join onto full visit template
+dat_LA_125_wide_full <- visit_template %>%
+  left_join(dat_LA_125_wide, by = c("location", "recording_date_time"))
+
+# 3. Create spp cols 2
+species_cols2 <- setdiff(names(dat_LA_125_wide_full), c("location", "recording_date_time"))
+
+# 4. Replace NA with 0
+dat_LA_125_wide_full <- dat_LA_125_wide_full %>%
+  mutate(across(all_of(species_cols2), ~ tidyr::replace_na(., 0)))
+
+# Create year column
+dat_125 <- dat_LA_125_wide_full %>%
+  mutate(
+    year = year(ymd_hms(recording_date_time))
+  )
+
+# Save UD mean count table
+write.csv(dat_125,
+          "Output/Tabular Data/test/count_all_years_LA_125.csv",
+          row.names = FALSE)
+
+
+
+# Clear environment
+rm(list = ls())  # Removes all objects from the environment
+
+
+
+############### SSM MODELS USING 140 M RADIUS BUFFERS
 
 # Load packages
 suppressPackageStartupMessages({
@@ -22,7 +89,7 @@ suppressPackageStartupMessages({
 
 
 # Load data
-dat1_LA <- read.csv("Output/Tabular Data/mean_count_all_years_LA.csv")
+dat1_LA <- read.csv("Output/Tabular Data/test/count_all_years_LA_125.csv")
 
 # Extract site, treatment, plot from location
 dat2_LA <- dat1_LA %>%
@@ -32,9 +99,18 @@ dat2_LA <- dat1_LA %>%
     year = factor(year, levels = sort(unique(year)))
   )
 
-# Create Site_ID column for random effects structure (site nested within block)
+# Create Site_ID and treatment_applied
+pre_year <- min(as.numeric(as.character(dat2_LA$year)), na.rm = TRUE)
+
 dat3_LA <- dat2_LA %>%
-  mutate(site = paste(block, treatment, sep = "-"))
+  mutate(
+    # Unique experimental unit (site × assigned treatment)
+    site = paste(block, treatment, sep = "-"),
+    
+    # BACI-ready treatment_applied: set pre-treatment year to NT
+    treatment_applied = ifelse(as.numeric(as.character(year)) == pre_year, "NT", treatment),
+    treatment_applied = factor(treatment_applied, levels = c("NT","LR","HR","FR"))
+  )
 
 # Reorganize dat3
 spp <- names(dat3_LA)[grepl("^[A-Z]{4}$", names(dat3_LA))]
@@ -54,7 +130,7 @@ dat4_pooled_LA <- dat4_LA %>%
     
     # Ensure other factors remain correctly defined (NT must be the reference level)
     treatment = factor(treatment, levels = c("NT", "LR", "HR", "FR")), 
-    # Define site and block as factors for random effects
+    # Define site and block as factors for the dual random effects
     site = factor(site), 
     block = factor(block), 
     year = factor(year)
@@ -75,19 +151,7 @@ dat4_pooled_LA <- dat4_pooled_LA %>%
   )
 
 
-# Save
-write.csv(dat4_pooled_LA, "Output/Tabular Data/mean_count_all_years_LA_SSM.csv")
-
-
-
-
-
-
-
-
-
-
-### CREATE FUNCTION FOR SINGLE-SPECIES MODELS
+### INDIVIDUAL SPECIES MODELS
 
 # Initialize an empty data frame to collect all BACI contrasts
 all_contrasts_df_LA <- data.frame()
@@ -95,18 +159,20 @@ all_contrasts_df_LA <- data.frame()
 # --- ROBUST HELPER FUNCTION FOR LOG CONTRAST CALCULATION ---
 calculate_baci_log_contrast <- function(model, species_name) {
   
-  # Get treatment x time-period marginal means on the log scale
   emm <- emmeans(model, ~ treatment * time_period, type = "link")
+  emm_df <- as.data.frame(emm)
   
-  # BACI contrasts using the row order:
-  # 1 NT Before
-  # 2 LR Before
-  # 3 HR Before
-  # 4 FR Before
-  # 5 NT After
-  # 6 LR After
-  # 7 HR After
-  # 8 FR After
+  # Hard check the row order before applying custom contrast vectors
+  expected_treatment   <- c("NT", "LR", "HR", "FR", "NT", "LR", "HR", "FR")
+  expected_time_period <- c("Before", "Before", "Before", "Before",
+                            "After",  "After",  "After",  "After")
+  
+  if (!identical(as.character(emm_df$treatment), expected_treatment) ||
+      !identical(as.character(emm_df$time_period), expected_time_period)) {
+    
+    print(emm_df[, c("treatment", "time_period", "emmean")])
+    stop("EMM row order is not the expected BACI order. Check factor levels or rewrite contrast specification.")
+  }
   
   baci <- contrast(
     emm,
@@ -118,13 +184,9 @@ calculate_baci_log_contrast <- function(model, species_name) {
     adjust = "none"
   )
   
-  # Summary table
   sum_tbl <- as.data.frame(summary(baci))
+  ci_tbl  <- as.data.frame(confint(baci))
   
-  # Confidence intervals
-  ci_tbl <- as.data.frame(confint(baci))
-  
-  # Standardize CI column names
   if ("lower.CL" %in% names(ci_tbl)) {
     ci_tbl$LCL <- ci_tbl$lower.CL
     ci_tbl$UCL <- ci_tbl$upper.CL
@@ -138,7 +200,6 @@ calculate_baci_log_contrast <- function(model, species_name) {
     stop("Could not find CI columns in confint(baci).")
   }
   
-  # Join summary + CI
   out <- dplyr::left_join(
     sum_tbl[, c("contrast", "estimate", "p.value")],
     ci_tbl[, c("contrast", "LCL", "UCL")],
@@ -150,7 +211,10 @@ calculate_baci_log_contrast <- function(model, species_name) {
       LogContrast = estimate,
       LCL = LCL,
       UCL = UCL,
-      PValue = p.value
+      PValue = p.value,
+      RatioContrast = exp(estimate),
+      RatioLCL = exp(LCL),
+      RatioUCL = exp(UCL)
     ) %>%
     dplyr::arrange(Species, Treatment)
   
@@ -161,15 +225,12 @@ calculate_baci_log_contrast <- function(model, species_name) {
 
 
 
-
-
-
 ###### MODELs
 ### FORMULA: Response ~ treatment * time_period + (1|site) + (1|block)
 
-# ===============================================
-# 1. AMRE (American Redstart)  | Family: Poisson
-# ===============================================
+# ==============================================================================
+# 1. AMRE (American Redstart) | VMR: 1.07 | Family: Com Poisson
+# ==============================================================================
 AMRE_model_LA <- glmmTMB(
   AMRE ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"),
@@ -186,14 +247,14 @@ AICc(AMRE_model_LA)
 set.seed(123)  # for reproducibility of the simulations
 res_AMRE_LA <- simulateResiduals(
   fittedModel = AMRE_model_LA,
-  n = 1000    
+  n = 1000    # number of simulations; increase if you want more stable tests
 )
 plot(res_AMRE_LA)
 
 
-# ================================
-# 2. ALFL | Family: Com-Poisson  
-# ================================
+# ==============================================================================
+# 2. ALFL  | VMR: 0.88 | Family: Com-Poisson
+# ==============================================================================
 ALFL_model_LA <- glmmTMB(
   ALFL ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"),
@@ -212,9 +273,9 @@ res_ALFL_LA <- simulateResiduals(
 plot(res_ALFL_LA)
 
 
-# ==============================================
-# 3. DEJU (Dark-eyed Junco) | Family: Poisson
-# ==============================================
+# ==============================================================================
+# 3. DEJU (Dark-eyed Junco) | VMR: 1.03 | Family: Poisson
+# ==============================================================================
 DEJU_model_LA <- glmmTMB(
   DEJU ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = poisson(link = "log"), 
@@ -234,9 +295,9 @@ res_DEJU_LA <- simulateResiduals(
 plot(res_DEJU_LA)
 
 
-# ===============================================
-# 4. DUFL (Dusky Flycatcher) | Family: Compois
-# ===============================================
+# ==============================================================================
+# 4. DUFL (Dusky Flycatcher) | VMR: 0.74 | Family: Compois
+# ==============================================================================
 DUFL_model_LA <- glmmTMB(
   DUFL ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"),
@@ -256,34 +317,12 @@ res_DUFL_LA <- simulateResiduals(
 plot(res_DUFL_LA)
 
 
-# ===================================================
-# 5. LISP (Lincoln's Sparrow) | Family: Com-Poisson
-# ===================================================
-LISP_model_LA <- glmmTMB(
-  LISP ~ treatment + time_period + treatment*time_period + (1|block/site),
-  family = poisson(link = "log"), 
-  data = dat4_pooled_LA
-)
-LISP_contrasts_LA <- calculate_baci_log_contrast(LISP_model_LA, "LISP")
-all_contrasts_df_LA <- bind_rows(all_contrasts_df_LA, LISP_contrasts_LA)
-summary(LISP_model_LA)
-AICc(LISP_model_LA)
-
-# Residuals
-set.seed(123)  # for reproducibility of the simulations
-res_LISP_LA <- simulateResiduals(
-  fittedModel = LISP_model_LA,
-  n = 1000    # number of simulations; increase if you want more stable tests
-)
-plot(res_LISP_LA)
-
-
-# ========================================================
-# 6. OCWA (Orange-crowned Warbler) | Family: Com-Poisson
-# ========================================================
+# ==============================================================================
+# 6. OCWA (Orange-crowned Warbler) | VMR: 0.92 | Family: Com-Poisson
+# ==============================================================================
 OCWA_model_LA <- glmmTMB(
   OCWA ~ treatment + time_period + treatment*time_period + (1|block/site),
-  family = compois(link = "log"),
+  family = poisson(link = "log"),
   data = dat4_pooled_LA
 )
 OCWA_contrasts_LA <- calculate_baci_log_contrast(OCWA_model_LA, "OCWA")
@@ -300,32 +339,9 @@ res_OCWA_LA <- simulateResiduals(
 plot(res_OCWA_LA)
 
 
-
-# ==================================
-# 7. OSFL (OSFL) | Family: Poisson
-# ==================================
-OSFL_model_LA <- glmmTMB(
-  OSFL ~ treatment + time_period + treatment*time_period + (1|block/site),
-  family = poisson(link = "log"), 
-  data = dat4_pooled_LA
-)
-OSFL_contrasts_LA <- calculate_baci_log_contrast(OSFL_model_LA, "OSFL")
-all_contrasts_df_LA <- bind_rows(all_contrasts_df_LA, OSFL_contrasts_LA)
-summary(OSFL_model_LA)
-AICc(OSFL_model_LA)
-
-# Residuals
-set.seed(123)  # for reproducibility of the simulations
-res_OSFL_LA <- simulateResiduals(
-  fittedModel = OSFL_model_LA,
-  n = 1000    # number of simulations; increase if you want more stable tests
-)
-plot(res_OSFL_LA)
-
-
-# ===============================================
-# 8. SWTH (Swainson's Thrush) | Family: Poisson
-# ===============================================
+# ==============================================================================
+# 9. SWTH (Swainson's Thrush) | VMR: 1.03 | Family: Poisson
+# ==============================================================================
 SWTH_model_LA <- glmmTMB(
   SWTH ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = poisson(link = "log"),
@@ -345,12 +361,12 @@ res_SWTH_LA <- simulateResiduals(
 plot(res_SWTH_LA)
 
 
-# ================================================
-# 9. WAVI (Warbling Vireo) | Family: Com-Poisson
-# ================================================
+# ==============================================================================
+# 10. WAVI | VMR: 1.05 | Family: Com-Poisson
+# ==============================================================================
 WAVI_model_LA <- glmmTMB(
   WAVI ~ treatment + time_period + treatment*time_period + (1|block/site),
-  family = compois(link = "log"),
+  family = poisson(link = "log"),
   data = dat4_pooled_LA
 )
 
@@ -369,10 +385,11 @@ res_WAVI_LA <- simulateResiduals(
 )
 plot(res_WAVI_LA)
 
+#var(dat4_pooled_LA$YRWA) / mean(dat4_pooled_LA$YRWA)
 
-# =====================================================
-# 10. WTSP (White-throated Sparrow) | Family: Poisson
-# =====================================================
+# ==============================================================================
+# 11. WTSP (White-throated Sparrow) | VMR: 1.30 | Family: Poisson
+# ==============================================================================
 WTSP_model_LA <- glmmTMB(
   WTSP ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = poisson(link = "log"),
@@ -394,9 +411,9 @@ res_WTSP_LA <- simulateResiduals(
 plot(res_WTSP_LA)
 
 
-# ========================================================
-# 11. YRWA (Yellow-rumped Warbler) | Family: Com-Poisson
-# ========================================================
+# ==============================================================================
+# 12. YRWA (Yellow-rumped Warbler) | VMR: 0.81 | Family: Com-Poisson
+# ==============================================================================
 YRWA_model_LA <- glmmTMB(
   YRWA ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"), 
@@ -426,6 +443,16 @@ print(all_contrasts_df_LA %>%
 
 
 
+
+
+
+
+
+
+
+
+
+
 ############ Generate EMM for each treatment
 
 get_log_emm_table <- function(model, species_name) {
@@ -437,7 +464,7 @@ get_log_emm_table <- function(model, species_name) {
     as_tibble() %>%
     select(treatment, time_period, emmean, SE)
   
-  # CI (log scale)
+  # CI (log scale): confint() output has version-dependent column names
   ci_tbl <- confint(emm) %>%
     as_tibble()
   
@@ -510,11 +537,16 @@ print(
 )
 
 ## ---------- Save ----------
-write.csv(
-  all_emmeans_log_LA,
-  "Output/Tables/SSM_EMMeans_LogScale_LA.csv",
-  row.names = FALSE
-)
+#write.csv(
+#  all_emmeans_log_LA,
+#  "Output/Tables/SSM_EMMeans_LogScale_LA.csv",
+#  row.names = FALSE
+#)
+
+
+
+
+
 
 
 
@@ -580,11 +612,14 @@ species_IRR_table_LA <- all_contrasts_IRR_LA %>%
 species_IRR_table_LA
 
 # Save to CSV
-write.csv(
-  species_IRR_table_LA,
-  "Output/Tables/SSM_BACI_IRR_LA.csv",
-  row.names = FALSE
-)
+#write.csv(
+#  species_IRR_table_LA,
+#  "Output/Tables/SSM_BACI_IRR_LA.csv",
+#  row.names = FALSE
+#)
+
+
+
 
 
 
@@ -644,98 +679,12 @@ print(contrast_plot_log_treat_LA)
 #                   contrast_plot_log_treat_LA, base_width = 7, base_height = 5)
 
 
-out_fig <- "Figures/Species-level models/BACI_SSM_LA_logcoef.tiff"
-ggsave(
-  filename    = out_fig,
-  plot        = contrast_plot_log_treat_LA,
-  device      = "tiff",
-  width       = 42,
-  height      = 18,
-  units       = "cm",
-  dpi         = 600,
-  compression = "lzw")
 
 
 
 
 
 
-########## PLOT MARGINAL MEANS BY TREATMENT (FULL SPECIES NAMES)
-
-# Species code -> full name lookup
-species_lookup <- c(
-  YRWA = "Yellow-rumped warbler",
-  AMRE = "American redstart",
-  ALFL = "Alder Flycatcher",
-  DEJU = "Dark-eyed junco",
-  DUFL = "Dusky flycatcher",
-  OCWA = "Orange-crowned warbler",
-  OSFL = "Olive-sided flycatcher",
-  SWTH = "Swainson's thrush",
-  WAVI = "Warbling vireo",
-  WTSP = "White-throated sparrow"
-)
-
-# Convert log-scale EMMs to response scale for plotting
-all_emmeans_resp_LA <- all_emmeans_log_LA %>%
-  filter(!Species %in% c("OSFL", "RCKI", "LISP", "AMRO")) %>%
-  filter(!is.na(LogMean)) %>%
-  mutate(
-    Species     = unname(species_lookup[as.character(Species)]),
-    treatment   = factor(treatment, levels = c("NT", "LR", "HR", "FR")),
-    time_period = factor(time_period, levels = c("Before", "After")),
-    Mean        = exp(LogMean),
-    LCL_resp    = exp(LCL),
-    UCL_resp    = exp(UCL)
-  )
-
-# Plot 
-p_ssm_emm_LA <- ggplot(
-  all_emmeans_resp_LA,
-  aes(x = treatment, y = Mean, color = time_period, group = time_period)
-) +
-  geom_errorbar(
-    aes(ymin = LCL_resp, ymax = UCL_resp, group = time_period),
-    position = position_dodge(width = 0.4),
-    width = 0.15,
-    linewidth = 0.8,
-    color = "black"
-  ) +
-  geom_point(
-    position = position_dodge(width = 0.4),
-    size = 2.5
-  ) +
-  facet_wrap(~ Species, ncol = 3, scales = "free_y") +
-  labs(
-    title = "Limited Amplitude",
-    x     = "Treatment",
-    y     = "Estimated marginal mean",
-    color = "Time period"
-  ) +
-  scale_color_brewer(palette = "Dark2") +
-  theme_minimal(base_size = 12) +
-  theme(
-    plot.title       = element_text(hjust = 0.5, face = "bold"),
-    strip.text       = element_text(size = 11),
-    panel.grid.minor = element_blank(),
-    panel.grid.major = element_blank(),
-    legend.position  = "right",
-    plot.background  = element_rect(color = "black", fill = NA, linewidth = 1),
-    axis.text.x      = element_text(hjust = 1, color = "black"),
-    axis.text.y      = element_text(color = "black"),
-    axis.title.x     = element_text(color = "black"),
-    axis.title.y     = element_text(color = "black")
-  )
-
-print("--- Plotting marginal means by treatment and time period ---")
-print(p_ssm_emm_LA)
-
-cowplot::save_plot(
-  "Figures/Species-level models/SSM_LA_marginal_means.png",
-  p_ssm_emm_LA,
-  base_width = 12,
-  base_height = 12
-)
 
 
 
@@ -769,7 +718,7 @@ emm_forest_plot_LA <- ggplot(all_emmeans_filtered,
   facet_wrap(~ Species, scales = "free_y", ncol = 3) +
   
   labs(
-    title = "Limited Amplitude",
+    title = "Unlimited Distance",
     x = "Treatment",
     y = "Estimated Log Mean Count (± 95% CI)",
     color = "Time Period"
@@ -792,5 +741,6 @@ emm_forest_plot_LA <- ggplot(all_emmeans_filtered,
 # 3. Print and Save
 print(emm_forest_plot_LA)
 
-cowplot::save_plot("Figures/Species-level models/EMM_ForestPlot_LA.png", 
-                   emm_forest_plot_LA, base_width = 13, base_height = 11)
+##cowplot::save_plot("Figures/Species-level models/EMM_ForestPlot_LA.png", 
+emm_forest_plot_LA, base_width = 13, base_height = 11)
+

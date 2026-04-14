@@ -166,8 +166,6 @@ write.csv(dat1, "Output/Tabular Data/LA inputs/PGBT_tags_all_years.csv", row.nam
 
 
 
-
-
 ######### Create a location, ARU, canopy openness df for LA processing
 
 # Select location column from previous task_2023 df

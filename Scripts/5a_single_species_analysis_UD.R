@@ -82,46 +82,8 @@ dat4_pooled_UD <- dat4_pooled_UD %>%
     )
   )
 
-
 # Save
 write.csv(dat4_pooled_UD, "Output/Tabular Data/mean_count_all_years_UD_SSM.csv")
-
-
-
-
-
-
-
-
-
-
-
-
-
-### VEG DATA
-
-veg_2023 <- read.csv("Input/Veg data/IBWG Brushing Trial Pre-Treatment Data.csv") %>%
-  rename(block = Block) %>%
-  rename(treatment = Treatment) %>%
-  select(block,treatment, Conifer.Density,Deciduous.Density)
-
-# Create site
-veg_2023_2 <- veg_2023 %>%
-  mutate(site = paste(block, treatment, sep = "-")) %>%
-  select(site,block,treatment,Conifer.Density,Deciduous.Density)
-
-# Summarize by site
-veg_2023_3 <- veg_2023_2 %>%
-  group_by(site) %>%
-  summarise(
-    Conifer.Density   = sum(Conifer.Density, na.rm = TRUE),
-    Deciduous.Density = sum(Deciduous.Density, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-
-
-
 
 
 
@@ -206,9 +168,9 @@ calculate_baci_log_contrast <- function(model, species_name) {
 ###### MODELS
 ### FORMULA: Response ~ treatment * time_period + (1|site) + (1|block)
 
-# ==============================================================================
-# 1. AMRE (American Redstart) | VMR: 1.07 | Family: Com-Poisson
-# ==============================================================================
+# ===================================================
+# 1. AMRE (American Redstart) | Family: Com-Poisson
+# ===================================================
 AMRE_model_UD <- glmmTMB(
   AMRE ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"),
@@ -229,9 +191,9 @@ AICc(AMRE_model_UD)
 #plot(res_AMRE_UD)
 
 
-# ==============================================================================
-# 2. ALFL  | VMR: 1.0 | Family: Com-Poisson
-# ==============================================================================
+# ===============================
+# 2. ALFL | Family: Com-Poisson
+# ===============================
 ALFL_model_UD <- glmmTMB(
   ALFL ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"), 
@@ -249,9 +211,9 @@ AICc(ALFL_model_UD)
 #)
 #plot(res_ALFL_UD)
 
-# ==============================================================================
-# 3. AMRO (American Robin) | VMR: 0.68 | Family: Com-Poisson
-# ==============================================================================
+# ===============================================
+# 3. AMRO (American Robin) | Family: Com-Poisson
+# ===============================================
 AMRO_model_UD <- glmmTMB(
   AMRO ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"), 
@@ -270,14 +232,15 @@ AICc(AMRO_model_UD)
 #plot(res_AMRO_UD)
 
 
-# ==============================================================================
-# 4. DEJU (Dark-eyed Junco) | VMR: 0.92 | Family: Poisson
-# ==============================================================================
+# ===============================================
+# 4. DEJU (Dark-eyed Junco) | Family: Poisson
+# ===============================================
 DEJU_model_UD <- glmmTMB(
   DEJU ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = poisson(link = "log"), 
   data = dat4_pooled_UD
 )
+
 DEJU_contrasts_UD <- calculate_baci_log_contrast(DEJU_model_UD, "DEJU")
 all_contrasts_df_UD <- bind_rows(all_contrasts_df_UD, DEJU_contrasts_UD)
 AICc(DEJU_model_UD)
@@ -291,9 +254,9 @@ AICc(DEJU_model_UD)
 #plot(res_DEJU_UD)
 
 
-# ==============================================================================
-# 5. DUFL (Dusky Flycatcher) | VMR: 0.43 | Family: Com-Poisson
-# ==============================================================================
+# ==================================================
+# 5. DUFL (Dusky Flycatcher) | Family: Com-Poisson
+# ==================================================
 DUFL_model_UD <- glmmTMB(
   DUFL ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"),
@@ -312,9 +275,9 @@ AICc(DUFL_model_UD)
 #)
 #plot(res_DUFL_UD)
 
-# ==============================================================================
+# ================================================================
 # 6. LISP (Lincoln's Sparrow) | VMR: 0.82 | Family: Com-Poisson
-# ==============================================================================
+# ================================================================
 LISP_model_UD <- glmmTMB(
   LISP ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"), 
@@ -333,9 +296,9 @@ AICc(LISP_model_UD)
 #plot(res_LISP_UD)
 
 
-# ==============================================================================
-# 7. OCWA (Orange-crowned Warbler) | VMR: 0.62 | Family: ZI-Com-Poisson
-# ==============================================================================
+# ===========================================================
+# 7. OCWA (Orange-crowned Warbler) | Family: ZI-Com-Poisson
+# ===========================================================
 OCWA_model_UD <- glmmTMB(
   OCWA ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"),
@@ -355,9 +318,9 @@ plot(res_OCWA_UD)
 
 
 
-# ==============================================================================
-# 8. OSFL (OSFL) | VMR: 0.92 | Family: Poisson
-# ==============================================================================
+# ==================================
+# 8. OSFL (OSFL) | Family: Poisson
+# ==================================
 OSFL_model_UD <- glmmTMB(
   OSFL ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = poisson(link = "log"), 
@@ -376,9 +339,9 @@ AICc(OSFL_model_UD)
 #plot(res_OSFL_UD)
 
 
-# ==============================================================================
-# 9. RCKI (Ruby-crowned Kinglet) | VMR: 0.77 | Family: Com Poisson
-# ==============================================================================
+# =====================================================
+# 9. RCKI (Ruby-crowned Kinglet) | Family: Com Poisson
+# =====================================================
 RCKI_model_UD <- glmmTMB(
   RCKI ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"), 
@@ -396,9 +359,9 @@ AICc(RCKI_model_UD)
 #)
 #plot(res_RCKI_UD)
 
-# ==============================================================================
-# 10. SWTH (Swainson's Thrush) | VMR: 0.533 | Family: Com-Poisson
-# ==============================================================================
+# ===================================================
+# 10. SWTH (Swainson's Thrush) | Family: Com-Poisson
+# ===================================================
 SWTH_model_UD <- glmmTMB(
   SWTH ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"),
@@ -417,9 +380,9 @@ AICc(SWTH_model_UD)
 #)
 #plot(res_SWTH_UD)
 
-# ==============================================================================
-# 11. WAVI | VMR: 0.719 | Family: Com-Poisson
-# ==============================================================================
+# ================================
+# 11. WAVI | Family: Com-Poisson
+# ================================
 WAVI_model_UD <- glmmTMB(
   WAVI ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"), 
@@ -437,9 +400,9 @@ AICc(WAVI_model_UD)
 #)
 #plot(res_WAVI_UD)
 
-# ==============================================================================
-# 12. WETA (Western Tanager) | VMR: 0.98 | Family: Poisson
-# ==============================================================================
+# =============================================
+# 12. WETA (Western Tanager) | Family: Poisson
+# =============================================
 WETA_model_UD <- glmmTMB(
   WETA ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = poisson(link = "log"), 
@@ -458,9 +421,9 @@ AICc(WETA_model_UD)
 #plot(res_WETA_UD)
 
 
-# ==============================================================================
-# 13. WTSP (White-throated Sparrow) | VMR: 0.584 | Family: Com-Poisson
-# ==============================================================================
+# =========================================================
+# 13. WTSP (White-throated Sparrow) | Family: Com-Poisson
+# =========================================================
 WTSP_model_UD <- glmmTMB(
   WTSP ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"),
@@ -480,9 +443,9 @@ AICc(WTSP_model_UD)
 #plot(res_WTSP_UD)
 
 
-# ==============================================================================
-# 14. YRWA (Yellow-rumped Warbler) | VMR: 0.765 | Family: Com-Poisson
-# ==============================================================================
+# =======================================================
+# 14. YRWA (Yellow-rumped Warbler) | Family: Com-Poisson
+# =======================================================
 YRWA_model_UD <- glmmTMB(
   YRWA ~ treatment + time_period + treatment*time_period + (1|block/site),
   family = compois(link = "log"), 
@@ -512,16 +475,6 @@ print(all_contrasts_df_UD %>%
 
 
 
-
-
-
-
-
-
-
-
-
-
 ############ Generate EMM for each treatment
 
 # Create function
@@ -538,7 +491,7 @@ get_log_emm_table <- function(model, species_name) {
   ci_tbl <- confint(emm) %>%
     as_tibble()
   
-  # Standardize CI column names robustly
+  # Standardize CI column names 
   if (all(c("lower.CL", "upper.CL") %in% names(ci_tbl))) {
     ci_tbl <- ci_tbl %>% rename(LCL = lower.CL, UCL = upper.CL)
   } else if (all(c(".lower", ".upper") %in% names(ci_tbl))) {
@@ -569,7 +522,7 @@ get_log_emm_table <- function(model, species_name) {
   out
 }
 
-## ---------- Put your fitted models in a named list ----------
+## ---------- Put fitted models in a named list ----------
 model_list_UD <- list(
   AMRE = AMRE_model_UD,
   ALFL = ALFL_model_UD,
@@ -587,7 +540,7 @@ model_list_UD <- list(
   YRWA = YRWA_model_UD
 )
 
-## ---------- Extract EMMs for ALL species (and keep going if one fails) ----------
+## ---------- Extract EMMs for ALL species ----------
 all_emmeans_log_UD <- purrr::imap_dfr(
   model_list_UD,
   ~ tryCatch(
@@ -617,16 +570,6 @@ write.csv(
   "Output/Tables/SSM_EMMeans_LogScale_UD.csv",
   row.names = FALSE
 )
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -709,10 +652,7 @@ write.csv(
 
 
 
-
-
-
-########## PLOT RESPONSES BY TREATMENT (log coefficients) 
+###### PLOT RESPONSES BY TREATMENT (log coefficients) 
 
 # Remove models that threw errors / untrusted CIs
 all_contrasts_df_UD_filtered <- all_contrasts_df_UD %>%
@@ -777,10 +717,6 @@ ggsave(
   units       = "cm",
   dpi         = 600,
   compression = "lzw")
-
-
-
-
 
 
 

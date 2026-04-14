@@ -80,12 +80,6 @@ write.csv(dat1_filtered, "Input/Tag reports/tags_all_years.csv")
 
 
 
-
-
-
-
-
-
 ## ============================================================
 ## MEAN COUNT — UNLIMITED DISTANCE (UD) 
 ## ============================================================
@@ -125,18 +119,6 @@ dat3_UD <- dat2_UD[ , sapply(dat2_UD, function(x) !is.numeric(x) || sum(x != 0, 
 
 # Save WITHOUT SINGLETONS
 write.csv(dat3_UD, "Output/Tabular Data/mean_count_all_years_UD.csv", row.names = FALSE)
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

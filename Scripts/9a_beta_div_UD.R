@@ -312,12 +312,9 @@ ggsave(
 
 
 
-## ==========================================
+## ====================================
 ## 5. β-diversity results tables (UD)
-##    - Long table (like your alpha/gamma BACI tables)
-##    - Interleaved table (metric header + treatments)
-##    + Mean ± half CI
-## ==========================================
+## ====================================
 
 # ---- 5a) LONG table ----
 beta_table_FINAL_UD <- beta_summary_FINAL_UD %>%
@@ -409,104 +406,4 @@ beta_table_FINAL_UD_interleaved
 write.csv(beta_table_FINAL_UD_interleaved,
           "Output/Tables/Beta_diversity_UD_Table_interleaved.csv",
           row.names = FALSE)
-
-
-
-
-
-
-
-
-
-
-
-## ================================================================
-## Community trajectories in NMDS space (unlimited distance example)
-## ================================================================
-
-# ... (NMDS section remains exactly as it was, using all three years for trajectory plotting) ...
-
-## 1. Build community matrix and metadata ---------------------------
-
-# Site × species matrix (can be presence/absence or abundance)
-comm_mat_UD <- dat5_div_UD %>%
-  select(all_of(species_cols)) %>%
-  as.matrix()
-
-# Metadata for each row in the matrix
-meta_UD <- dat5_div_UD %>%
-  select(location, treatment, year) %>%
-  mutate(
-    treatment = factor(treatment, levels = c("NT", "LR", "HR", "FR")),
-    year      = factor(year, levels = c("2023", "2024", "2025"))
-  )
-
-## 2. NMDS ordination (Bray–Curtis) --------------------------------
-
-set.seed(123)
-# Note: Using 'bray' on P/A data is equivalent to Jaccard-like measures.
-nmds_UD <- metaMDS(comm_mat_UD, distance = "bray", k = 2, trymax = 1000)
-
-# Site scores
-site_scores_UD <- as.data.frame(scores(nmds_UD, display = "sites")) %>%
-  mutate(
-    location  = meta_UD$location,
-    treatment = meta_UD$treatment,
-    year      = meta_UD$year
-  )
-
-## 3. Treatment × year centroids in ordination space ---------------
-
-centroids_UD <- site_scores_UD %>%
-  group_by(treatment, year) %>%
-  summarise(
-    NMDS1 = mean(NMDS1),
-    NMDS2 = mean(NMDS2),
-    .groups = "drop"
-  ) %>%
-  arrange(treatment, year)
-
-# Optional: trajectory length (amount of compositional change)
-traj_length_UD <- centroids_UD %>%
-  arrange(treatment, year) %>%
-  group_by(treatment) %>%
-  summarise(
-    traj_length = sum(
-      sqrt(diff(NMDS1)^2 + diff(NMDS2)^2)
-    ),
-    .groups = "drop"
-  )
-print(traj_length_UD)
-
-## 4. Trajectory plot (arrows between years per treatment) ---------
-
-gg_traj_UD <- ggplot(centroids_UD,
-                     aes(x = NMDS1, y = NMDS2,
-                         colour = treatment, group = treatment)) +
-  # arrows showing direction of change across years within treatment
-  geom_path(arrow = arrow(type = "closed", length = unit(0.2, "cm")),
-            linewidth = 0.8) +
-  # centroid points
-  geom_point(size = 3) +
-  # year labels next to points
-  geom_text(aes(label = year),
-            nudge_y = 0.03, size = 3) +
-  scale_colour_brewer(palette = "Dark2",
-                      name = "Treatment") +
-  coord_equal() +
-  labs(
-    title = "NMDS (Unlimited Distance)",
-    x = "NMDS1",
-    y = "NMDS2"
-  ) +
-  theme_bw(base_size = 13) +
-  theme(
-    panel.grid.minor = element_blank(),
-    panel.grid.major = element_blank(),
-    strip.text = element_text(face = "bold")
-  )
-
-print(gg_traj_UD)
-
-
 
